@@ -1,0 +1,2058 @@
+## Program to implement data visualization scripts
+## Functional Asymmetry in Ecological Networks
+## Gabriel Munoz
+## Nov 2024 
+
+## Note: this programs depends on 01_FTA_implementation.R 
+## Note: Figures are labeled in order of appereance 
+
+
+## Dependencies
+
+```{r}
+library(tidyverse)
+library(ggraph)
+library(igraph)
+
+```
+
+### Figure 01: Visualize data 
+
+
+```{r}
+
+palm_trait_data |>
+  ggplot(aes(MaxStemHeight_m, AverageFruitLength_cm, 
+             col = factor(Acaulescent))) + 
+  facet_wrap(~Acaulescent + Erect) + 
+  geom_point() + 
+  geom_smooth(method = 'lm') + 
+  theme_minimal()
+
+```
+
+```{r}
+
+mammal_trait_data |> 
+  ggplot(aes(BodyMass.Value, Diet.Fruit)) + 
+  geom_point() + 
+  geom_smooth(method = 'lm') + 
+  theme_minimal() + 
+  facet_wrap(~Activity.Diurnal + Activity.Crepuscular + Activity.Nocturnal)
+
+```
+
+
+
+```{r}
+
+# Create an edge list for the network plot
+edges <- int_data %>%
+  select(PALM, FRUGIVORE, biogeographicRegion) %>%
+  distinct()
+
+# Create a graph object using igraph
+graph <- graph_from_data_frame(edges, directed = FALSE)
+
+# Create a node data frame to differentiate between PALM and FRUGIVORE
+nodes <- data.frame(
+  name = unique(c(edges$PALM, edges$FRUGIVORE)),
+  type = ifelse(unique(c(edges$PALM, edges$FRUGIVORE)) %in% edges$PALM, "PALM", "FRUGIVORE")
+)
+
+# Plot the network using ggraph, circular  layout
+
+ggraph(graph, layout = 'circle') + 
+  geom_edge_link(aes(edge_alpha = 0.8), show.legend = FALSE) + 
+  geom_node_point(aes(color = nodes$type), size = 5) + 
+  geom_node_text(aes(label = name), repel = TRUE) + 
+  theme_void() + 
+  facet_wrap(~biogeographicRegion) + 
+  scale_color_manual(values = c("PALM" = "green", "FRUGIVORE" = "red"))
+
+
+
+ggraph(graph, layout = 'mds') + 
+  geom_edge_link(aes(edge_alpha = 0.8), show.legend = FALSE) + 
+  geom_node_point(aes(color = nodes$type), size = 5) + 
+  geom_node_text(aes(label = name), repel = TRUE) + 
+  theme_void() + 
+  facet_wrap(~biogeographicRegion) + 
+  scale_color_manual(values = c("PALM" = "green", "FRUGIVORE" = "red"))
+
+
+```
+
+### Figure 02: Visualize dataset imbalance 
+
+```{r}
+
+
+# Define the data
+data <- c(
+  'traits palms' = length(unique(palm_trait_data$SpecName)),
+  'traits mammals' = length(unique(mammal_trait_data$Scientific)),
+  'interaction palms' = length(unique(int_data$PALM)),
+  'interaction mammals' = length(unique(int_data$FRUGIVORE))
+)
+
+# Define colors
+colors <- c('green', 'firebrick', 'green', 'firebrick')
+
+# Create the bar plot
+png("species_count_plot_AAS_style.png", width = 800, height = 600, res = 60) # high resolution for publication
+par(mar = c(5, 5, 4, 2) + 0.1) # Adjust margins
+
+barplot(log_counts,
+        col = colors,
+        names.arg = names(data),
+        ylab = "log (species count)",
+        main = "Species Count by Trait and Interaction for Palms and Mammals",
+        las = 1,
+        cex.names = 0.8, # Size for x-axis labels
+        cex.lab = 1.2, # Size for y-axis label
+        cex.main = 1.4) # Size for main title
+
+# Add grid lines
+# abline(h = pretty(log_counts), col = "gray", lty = 2)
+
+dev.off() # Save the plot
+
+```
+
+### Figure 03: Visualize latent network models 
+
+```{r}
+
+latent_network_models$SBM_ProbsMat  %>% 
+  heatmap(main = 'Stochastic Block Model')
+
+
+latent_network_models$B_ProbsMat  %>% 
+  heatmap(main = 'Matching-centrality Model')
+
+
+latent_network_models$C_ProbsMatrix  %>% 
+  heatmap(main = 'Connectance Model')
+
+
+latent_network_models$M_ProbsMatrix %>% 
+  heatmap(main = 'Trait Matching Model')
+
+```
+
+
+```{r}
+latent_network_models$SBM_ProbsMat
+
+latent_network_models$tr |>
+  as.data.frame() |>
+  graph_from_incidence_matrix(directed = FALSE) |>
+  ggraph::ggraph() +
+  geom_edge_link( alpha = 0.5) +
+  geom_node_point(color = 'lightblue', size = 5) +
+  geom_node_text(aes(label = ""), repel = TRUE, size = 2) +
+  theme_void() +
+  theme(legend.position = 'none') +
+  labs(title = 'Matching-centrality model') +
+  theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+
+
+
+
+
+
+```{r}
+
+## create a network graph from a weighted incidence matrix, stored as a dataframe
+## make the labels small and the edges thin
+
+
+latent_network_models$B_ProbsMat |> 
+  as.data.frame() |>
+  graph_from_incidence_matrix(directed = FALSE) |>
+  ggraph::ggraph() +
+  geom_edge_link( alpha = 0.5) +
+  geom_node_point(color = 'lightblue', size = 5) +
+  geom_node_text(aes(label = ""), repel = TRUE, size = 2) +
+  theme_void() +
+  theme(legend.position = 'none') +
+  labs(title = 'Matching-centrality model') +
+  theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+
+
+### Figure 04: Latent network model performance 
+
+```{r}
+
+YJtestin |>
+  ggplot(aes( 1-speci,sens, color = factor(id))) +
+  geom_point(size = 3, alpha = 0.4) + 
+  geom_line(size = 2, alpha = 0.5) + 
+  theme_bw() + 
+  geom_abline(aes(slope =  1, intercept = 0), size = 1.5) + 
+  xlab('1 - Specificity') + 
+  ylab('Sensitivity') + 
+  theme_classic() +
+  theme(
+    axis.title.x  = element_text(size = 16, face = "bold"),
+    axis.title.y  = element_text(size = 16, face = "bold"),
+    axis.text.x   = element_text(size = 14),
+    axis.text.y   = element_text(size = 14),
+    legend.title  = element_text(size = 14),
+    legend.text   = element_text(size = 12)
+  )
+
+```
+
+```{r}
+
+YJtestin |>
+  ggplot(aes(id, YJ)) + 
+  geom_boxplot(aes(fill = factor(id)), alpha = 0.3) + 
+  theme_bw() + 
+  ylab("Youden's J") + 
+  xlab("Network structural model")+
+  theme_classic() +
+  theme(
+    axis.title.x  = element_text(size = 16, face = "bold"),
+    axis.title.y  = element_text(size = 16, face = "bold"),
+    axis.text.x   = element_text(size = 14),
+    axis.text.y   = element_text(size = 14),
+    legend.title  = element_text(size = 14),
+    legend.text   = element_text(size = 12)
+  )
+```
+
+## Figure 05: Trait distribution across SBM groups 
+
+```{r}
+
+
+palm_groupings_p <- PalmNet %>% 
+  ggplot(aes(factor(SBMs.SB_H), AverageFruitLength_cm)) + 
+  geom_boxplot(aes(fill = factor(SBMs.SB_H)), col = 'black', alpha = 0.6) +
+  theme_minimal() + 
+  xlab('') + 
+  ylab('Palm Fruit Length (log)') +
+  theme(legend.position="none")
+
+mamma_groupings_p <- MammNet %>% 
+  ggplot(aes(factor(SBMs.SB_W), BodyMass.Value)) + 
+  geom_boxplot(aes(fill = factor(SBMs.SB_W)),
+               col = 'black', alpha = 0.6)  + 
+  theme_minimal() + 
+  xlab('SBM group') + 
+  ylab('Mammal body mass (log)') +
+  theme(legend.position="none")
+
+
+
+
+panel1 <- gridExtra::grid.arrange(palm_groupings_p,mamma_groupings_p)
+
+panel1
+```
+
+
+## Figure 06: Multinomial models to predict SBM structure
+
+
+```{r}
+
+
+# Plot the ROC curves for all models together
+roc_mammals <- roc_data_mammals_combined %>%
+  ggplot(aes(x = 1 - specificity, 
+             y = sensitivity, color = Model)) +
+  geom_smooth(aes(fill = Model), alpha = 0.2, size = 2) + 
+  geom_abline(aes(intercept = 0, slope =1), size = 3 ) + 
+  labs(x = "1 - Specificity",
+       y = "Sensitivity", 
+       title = "ROC Curves for All Models") + 
+  theme_minimal()
+roc_mammals
+
+
+# Plot the ROC curves for all models together
+roc_palm_plot <- roc_data_palm_combined %>%
+  ggplot(aes(x = 1 - specificity, 
+             y = sensitivity, color = Model)) +
+  geom_point() +
+  geom_smooth() + 
+  geom_abline(aes(intercept = 0, slope =1 )) + 
+  labs(x = "1 - Specificity", y = "Sensitivity", title = "ROC Curves for All Models")
+
+roc_palm_plot
+```
+
+## Figure 07: Predictor variable importance 
+
+```{r}
+
+par(mar = c(3,10,2,2))
+
+var_im_mammal <- 
+  caret::varImp(refit_mammal) %>%
+  arrange(desc(Overall)) %>% 
+  rownames_to_column('trait') %>%
+  ggplot() + 
+  # variable importance ranked 
+  geom_bar(aes(reorder(trait, Overall), Overall), stat = 'identity', fill = 'firebrick') + 
+  coord_flip() + 
+  theme_minimal() + 
+  ylab('Variable importance') + 
+  xlab('Interaction Trait') + 
+  theme(axis.text.y = element_text(size = 8)) + 
+  theme(axis.text.x = element_text(size = 8)) + 
+  theme(axis.title.x = element_text(size = 10)) + 
+  theme(axis.title.y = element_text(size = 10)) + 
+  theme(legend.position = 'none')
+
+
+var_im_palm <- 
+  caret::varImp(refit_palm) %>%
+  arrange(desc(Overall)) %>% 
+  rownames_to_column('trait') %>%
+  ggplot() + 
+  # variable importance ranked 
+  geom_bar(aes(reorder(trait, Overall), Overall), stat = 'identity', fill = 'firebrick') + 
+  coord_flip() + 
+  theme_minimal() + 
+  xlab('Interaction Trait') + 
+  ylab('Variable importance') + 
+  theme(axis.text.y = element_text(size = 8)) + 
+  theme(axis.text.x = element_text(size = 8)) + 
+  theme(axis.title.x = element_text(size = 10)) + 
+  theme(axis.title.y = element_text(size = 10)) + 
+  theme(legend.position = 'none')
+
+
+
+library(patchwork) 
+
+## plot both 
+
+var_imp_both <- var_im_palm + var_im_mammal
+
+## save plot as tiff
+
+## var_imp_both |> 
+## ggsave("02_Outputs/partial_figs/var_imp_plot.tiff", width = 10, height = 10, units = "in")
+
+
+var_imp_plot_palm <- barplot(var_im_palm, horiz = T, las = 1)
+
+
+var_m <- var_imp_mam %>% t() %>% data.frame() %>%
+  rownames_to_column('id') %>% 
+  arrange((Overall)) %>% 
+  mutate(id = factor(id, levels = id)) %>% 
+  ggplot(aes(Overall, id)) + 
+  geom_col() + 
+  theme_minimal() + 
+  xlab('Importance') + 
+  ylab('Variable')
+
+
+var_p <- var_im_palm %>% t() %>% data.frame() %>%
+  rownames_to_column('id') %>% 
+  arrange((Overall)) %>% 
+  mutate(id = factor(id, levels = id)) %>% 
+  ggplot(aes(Overall, id)) + 
+  geom_col() + 
+  theme_minimal() + 
+  xlab('Importance') + 
+  ylab('Variable')
+
+
+gridExtra::grid.arrange(var_p, var_m, ncol = 2)
+```
+
+## Figure 08: Trait composition of mammal interaction guilds (i.e. interaction niche of palms)
+
+```{r}
+
+diet_trait_plot <- 
+  reshape2::melt(Pred_trait_data) %>% 
+  group_by(pred,variable) |>
+  summarize(value = mean(value)) |>
+  filter(grepl("^Diet", variable)) |> 
+  ggplot(aes(pred, variable, fill = value)) + 
+  geom_tile() + 
+  theme_minimal() +
+  ylab('Mammal diet traits') + 
+  xlab('Interaction blocks') + 
+  labs(fill = 'Percentage') +  # Set your custom legend title here
+  theme(
+    legend.position = 'right'  # Display the legend on the righ
+  ) + 
+  scale_fill_gradient(low = "white", high = "firebrick", limits = c(0,100)) 
+
+
+
+activity_traits_plot <- 
+  reshape2::melt(Pred_trait_data) %>% 
+  group_by(pred, variable) %>%
+  filter(!grepl("^Diet|BodyMass", variable)) %>% 
+  summarize(value = mean(value)) %>%
+  ggplot(aes(x = pred, y = variable, fill = value)) + 
+  geom_tile(color = "grey80") +  # Light border for each tile for readability
+  theme_minimal() +
+  ylab("Mammal Activity Traits") + 
+  xlab("Interaction Blocks") + 
+  labs(fill = "Percentage") + 
+  scale_fill_gradient(low = "white", high = "firebrick", limits = c(0, 1)) + 
+  theme(
+    axis.title.x = element_text(size = 9, face = "bold"),
+    axis.title.y = element_text(size = 9, face = "bold"),
+    axis.text.x = element_text(size = 8, angle = 45, hjust = 1),  # Tilt x-axis labels for space efficiency
+    axis.text.y = element_text(size = 8),
+    legend.title = element_text(size = 8, face = "bold"),
+    legend.text = element_text(size = 7),
+    panel.grid = element_blank(),  # Remove grid lines for a clean look
+    plot.margin = margin(0.5, 0.5, 0.5, 0.5, "cm"),
+    legend.position = "right"
+  )
+
+# Display the plot
+print(activity_traits_plot)
+
+
+body_mass_plot <- 
+  reshape2::melt(Pred_trait_data) %>% 
+  group_by(pred, variable) %>%
+  filter(grepl("BodyMass", variable)) %>%
+  ggplot(aes(x = pred, y = value)) + 
+  geom_boxplot(outlier.shape = NA, color = "black", fill = "grey70", width = 0.5) +  # Adjust box width for clarity
+  theme_minimal() +
+  ylab("Log-transformed Mammal Body Mass") + 
+  xlab("Interaction Blocks") + 
+  labs(fill = "Percentage") + 
+  scale_fill_gradient(low = "white", high = "firebrick", limits = c(0, 1)) + 
+  theme(
+    plot.title = element_text(size = 10, face = "bold", hjust = 0.5),
+    axis.title = element_text(size = 9, face = "bold"),
+    axis.text = element_text(size = 8),
+    legend.title = element_text(size = 8, face = "bold"),
+    legend.text = element_text(size = 7),
+    panel.grid.major = element_line(color = "gray90", size = 0.3),
+    panel.grid.minor = element_blank(),
+    plot.margin = margin(0.5, 0.5, 0.5, 0.5, "cm"),
+    legend.position = "right"
+  )
+
+
+diet_trait_plot 
+activity_traits_plot 
+body_mass_plot 
+```
+
+
+
+```{r}
+Pred_trait_data
+
+
+```
+
+
+
+## Figure 09: Trait composition of palm interaction guilds (interaction niche of mammals)
+
+
+
+```{r}
+
+fruit_lenght_plot <- 
+  reshape2::melt(Pred_trait_data_palm) %>% 
+  group_by(pred,variable) |>
+  filter(grepl("^Avera", variable)) |> 
+  ggplot(aes(pred, value) )+ 
+  geom_boxplot() + 
+  theme_minimal() +
+  ylab('Average Fruit Length (log)') + 
+  xlab('Interaction blocks') + 
+  labs(fill = 'Percentage') +  # Set your custom legend title here
+  theme(
+    legend.position = 'right'  # Display the legend on the righ
+  ) + scale_fill_gradient(low = "white", high = "firebrick", limits = c(0,100))
+
+
+stem_height_plot <- 
+  reshape2::melt(Pred_trait_data_palm) %>% 
+  group_by(pred,variable) |>
+  filter(grepl("^MaxS", variable)) |> 
+  ggplot(aes(pred, value) )+ 
+  geom_boxplot() + 
+  theme_minimal() +
+  ylab('Maximum stem height (log)') + 
+  xlab('Interaction blocks') + 
+  labs(fill = 'Percentage') +  # Set your custom legend title here
+  theme(
+    legend.position = 'right'  # Display the legend on the righ
+  ) +scale_fill_gradient(low = "white", high = "firebrick", limits = c(0,100)) 
+
+growth_form_plot <- 
+  reshape2::melt(Pred_trait_data_palm) %>% 
+  group_by(pred,variable) |>
+  summarize(value = mean(value)) %>% 
+  filter(!grepl("^MaxS|Average", variable)) |> 
+  ggplot(aes(pred, variable, fill = value) )+ 
+  geom_tile() + 
+  theme_minimal() +
+  ylab('Growth form') + 
+  xlab('Interaction blocks') + 
+  labs(fill = 'Percentage') +  # Set your custom legend title here
+  theme(
+    legend.position = 'right'  # Display the legend on the righ
+  ) +scale_fill_gradient(low = "white", high = "firebrick", limits = c(0,1))
+
+```
+
+## Figure 10: Functional richness changes along the climatic gradient 
+
+```{r}
+
+
+fr_palms_with_climate |> 
+  filter(clim_var %in% c('Temp', 'PS')) |>
+  droplevels() |> 
+  ggplot(aes(scale(clim_val), obs_ab)) +
+  geom_point(alpha = 0.05, col = 'firebrick2', size = 0.3) + 
+  facet_wrap(~clim_var+SBM_G, ncol = 7, nrow = 4, scales='free') +
+  theme_minimal() +
+  labs(title = 'Mammal Functional Richness ~ Climate', 
+       y = 'Functional richness', x = 'Environmental gradient') + 
+  geom_smooth(col = 'firebrick2', fill = 'firebrick') +
+  theme(
+    strip.text = element_text(size = 9, face = "plain"),
+    strip.background = element_blank()
+  ) +
+  theme(strip.text = element_text(margin = margin(0, 0, 0, 0))) + 
+  geom_smooth(aes(scale(clim_val),obs_ab), 
+              method = 'lm',
+              col = 'gray',
+              data = fr_norm_palm_mean_with_climate  |> 
+                filter(clim_var %in% c('Temp', 'PS')) |>
+                droplevels()) 
+
+
+
+
+fr_palms_with_climate$grid |> n_distinct()
+
+fr_palms_with_climate$SBM_G |> n_distinct()
+
+
+fr_palms_with_climate$SBM_G |> n_distinct()
+
+
+names(fr_palms_with_climate)
+xtabs(obs_ab~SBM_G , fr_palms_with_climate)
+
+fr_palms_with_climate |> 
+  group_by(clim_var, SBM_G) |> 
+  summarize(mean = mean(obs_ab) |> round(2), 
+            sd = sd(obs_ab) |> round(2)) |> 
+  arrange(mean, clim_var)
+
+```
+```{r}
+
+fr_mammals_with_climate |> 
+  filter(clim_var %in% c('Temp', 'PS')) |>
+  droplevels() |> 
+  ggplot(aes(scale(clim_val), obs_ab)) +
+  geom_point(alpha = 0.05, col = 'darkgreen', size = 0.3) + 
+  facet_wrap(~clim_var+SBM_G, ncol = 7, nrow = 4, scales='free') +
+  theme_minimal() +
+  labs(title = 'Palm Functional Richness ~ Climate', 
+       y = 'Functional richness', x = 'Environmental gradient') + 
+  geom_smooth(method = 'lm', col = 'darkgreen', fill = 'green') +
+  theme(
+    strip.text = element_text(size = 8, face = "plain"),
+    strip.background = element_blank()
+  ) +
+  theme(strip.text = element_text(margin = margin(0, 0, 0, 0))) + 
+  geom_smooth(aes(scale(clim_val),obs_ab), 
+              method = 'lm',
+              col = 'gray',
+              data = fr_norm_mammals_mean_with_climate|> 
+                filter(clim_var %in% c('Temp', 'PS')) |>
+                droplevels() )
+
+fr_mammals_with_climate |> 
+  group_by(clim_var, SBM_G) |> 
+  summarize(mean = mean(obs_ab) |> round(2), 
+            sd = sd(obs_ab) |> round(2)) |> 
+  arrange(mean, clim_var)
+```
+
+## Plot the trophic trends along environmental gradients for all interaction guilds 
+
+
+
+
+```{r, warnings = FALSE}
+library(dplyr)
+library(ggplot2)
+library(grid)       # for unit()
+
+
+plot_trophic_trends_env <- 
+
+fr_palms_with_climate %>%
+  droplevels() %>%
+  ggplot(aes(x = clim_val, y = obs_ab)) +
+  
+  # raw points + smooth
+  geom_point(alpha = 0.05, 
+             colour = "black",
+             size = 0.7) +
+  geom_smooth(colour = "firebrick", 
+              fill = "pink", 
+              size = 1.5, se = TRUE) +
+   # raw points + smooth
+  geom_point(alpha = 0.05, 
+             colour = "black",
+             size = 0.7, data= fr_mammals_with_climate) +
+  geom_smooth(colour = "darkgreen", 
+              fill = "green", 
+              size = 1.5, se = TRUE, data = fr_mammals_with_climate) +
+  
+  
+  # two columns by clim_var, rows by SBM_G
+  facet_grid(
+    rows   = vars(SBM_G),
+    cols   = vars(clim_var),
+    scales = "free"        # allow both axes to vary by panels
+  ) +
+  
+  # labels
+  labs(
+    x     = "Environmental gradient",
+    y     = "Functional richness"
+  ) +
+  theme(
+    plot.title        = element_text(face = "bold", size = 14, hjust = 0.5, margin = margin(b = 10)),
+    axis.title        = element_text(size = 11),
+    axis.text         = element_text(size = 14, colour = "black"),
+    strip.text        = element_text(size = 9),
+    strip.background  = element_blank(),
+    panel.grid.major  = element_line(colour = "grey90"),
+    panel.grid.minor  = element_blank(),
+    panel.spacing     = unit(1, "lines"),     # more breathing room between rows
+    plot.margin       = margin(20, 20, 20, 20)
+  )
+
+
+fr_palms_with_climate |>
+  ggplot(aes(x = clim_val, y = obs_ab)) +
+  geom_point(color = "steelblue", alpha = 0.7, size = 2) +
+  facet_grid(rows = vars(SBM_G), cols = vars(clim_var), scales = "free") +
+  labs(
+    x = "Climatic Value",
+    y = "Observed Abundance",
+    title = "Observed Abundance vs. Climatic Value by Climate Variable and SBM Group"
+  ) +
+  theme_minimal() +
+  theme(
+    strip.text = element_text(face = "bold", size = 10),
+    axis.title = element_text(size = 12),
+    plot.title = element_text(hjust = 0.5, size = 14)
+  )
+```
+
+
+```{r}
+
+ggsave(
+  filename = "Trophic_trends_plot.pdf",
+  plot     = plot_trophic_trends_env,
+  width    = 10,   # wider to give room for labels
+  height   = 10,
+  device   = cairo_pdf
+)
+
+
+```
+
+
+
+
+
+
+
+
+
+
+```{r}
+
+
+grids <- fr_palms_with_climate$grid |> unique()
+fta_simpson <- c()
+
+for( i in seq_along(grids)){
+  
+  fta_simpson[i] <- 
+    abs(
+      fr_palms_with_climate |> 
+        filter(clim_var == 'Temp') |> 
+        filter(grid == grids[i]) |> 
+        pull(obs_ab) |> 
+        vegan::diversity(index = 'simpson') - 
+        
+        fr_mammals_with_climate |> 
+        filter(clim_var == 'Temp') |> 
+        filter(grid == grids[i]) |> 
+        pull(obs_ab) |> 
+        vegan::diversity(index = 'simpson')
+    )
+  
+}
+```
+
+### FTA grid level measure using simpson diversity index. 
+
+
+```{r}
+
+fta_simpson_climate <- 
+  data.frame(grids, fta_simpson) |> 
+  left_join(fr_mammals_with_climate |> 
+              filter(clim_var == 'Temp', 
+                     SBM_G == 'X1') |> 
+              select(grid, clim_val) |> 
+              rename(temperature = clim_val), by = c('grids' = 'grid')) |> 
+  left_join(fr_mammals_with_climate |> 
+              filter(clim_var == 'PS', 
+                     SBM_G == 'X1') |> 
+              select(grid, clim_val) |> 
+              rename(precipitation_seasonality = clim_val), by = c('grids' = 'grid')) |> 
+  left_join(fr_mammals_with_climate |> 
+              filter(clim_var == 'Prec', 
+                     SBM_G == 'X1') |> 
+              select(grid, clim_val) |> 
+              rename(precipitation = clim_val), by = c('grids' = 'grid')) |> 
+  left_join(fr_mammals_with_climate |> 
+              filter(clim_var == 'TS', 
+                     SBM_G == 'X1') |> 
+              select(grid, clim_val) |> 
+              rename(temperature_seasonality = clim_val), by = c('grids' = 'grid'))
+
+
+
+fta_simpson_climate |> 
+  ggplot() + 
+  geom_point(aes(temperature, precipitation_seasonality |> log() , 
+                 size =fta_simpson ), col = 'grey') 
+
+gam_fta_simpson <- 
+  lm(fta_simpson ~ temperature+ precipitation+ precipitation_seasonality ,  data = fta_simpson_climate)
+
+summary(gam_fta_simpson)
+
+
+
+
+```
+
+
+
+## Figure 11: Model predictions of FR 
+
+```{r}
+mam_ft_temp <- plot_predictions(model_gam_fr_mammal, condition = c('Temp'))
+
+mam_ft_temp + 
+  theme_minimal() + 
+  xlab('Mean annual temperature') + 
+  ylab('Mammal FR') + 
+  labs(
+    fill = "Guild" , 
+    color = "Guild" # Clear legend title
+  )
+```
+
+```{r}
+vis.gam(model_gam_fr_palm,view = c('PS', 'Temp'), plot.type = 'contour', theta = 30)
+
+vis.gam(model_gam_fr_mammal,view = c('PS', 'Temp'), theta = 30)
+
+```
+
+
+
+
+```{r}
+
+```
+
+
+## Figure 12: Model predictions of FTA 
+
+
+
+
+
+```{r}
+library(dplyr)
+library(purrr)
+library(mgcv)
+library(ggplot2)
+library(ggrepel)
+library(grid)      # for unit()
+library(extrafont) # for Helvetica
+
+#–– AAAS‐style theme
+theme_aaas <- function(base_family="Helvetica"){
+  theme_minimal(base_family=base_family) +
+    theme(
+      plot.title       = element_text(face="bold", size=16, hjust=0.5, margin=margin(b=10)),
+      axis.title       = element_text(size=12),
+      axis.text        = element_text(size=10, colour="black"),
+      legend.position  = "none",
+      panel.grid.major = element_line(colour="grey90"),
+      panel.grid.minor = element_blank(),
+      plot.margin      = margin(20,20,20,20)
+    )
+}
+
+#–– Combine palms (p) & mammals (m) and label with "IG-"
+df_combined <- bind_rows(
+  fr_palms_with_climate   |> filter(clim_var=="PS") |> mutate(type="m"),
+  fr_mammals_with_climate |> filter(clim_var=="PS") |> mutate(type="p")
+) %>%
+  droplevels() %>%
+  mutate(label = paste0("IG-", SBM_G, type)) |>
+  mutate(label = str_remove(label, "X"))
+
+#–– Safe GAM wrapper
+safe_gam <- function(d){
+  if(nrow(d[complete.cases(d$clim_val, d$obs_ab), ]) < 5 ||
+     length(unique(d$clim_val)) < 3) return(NULL)
+  tryCatch(
+    gam(obs_ab ~ s(clim_val), data = d, method="REML"),
+    error = function(e) NULL
+  )
+}
+
+#–– Compute true smooth endpoints
+endpoints <- df_combined %>%
+  group_by(label) %>%
+  nest() %>%
+  mutate(
+    gam_mod = map(data, safe_gam),
+    x_max   = map_dbl(data, ~ max(.x$clim_val, na.rm=TRUE)),
+    y_max   = map2_dbl(gam_mod, x_max,
+                      ~ if(!is.null(.x))
+                          predict(.x, newdata = data.frame(clim_val = .y))
+                        else
+                          NA_real_)
+  ) %>%
+  filter(!is.na(y_max)) %>%
+  dplyr::select(label, x = x_max, y = y_max)
+
+#–– Base plot with correct colours by type
+p_base <- ggplot(df_combined, aes(x = clim_val, y = obs_ab, group = label, colour = type)) +
+  geom_smooth(
+    method = "gam",
+    se     = TRUE,
+    size   = 1.2,
+    alpha  = 0.5
+  ) +
+  scale_colour_manual(
+    values = c(p = "darkgreen",  # palms
+               m = "firebrick2")  # mammals
+  ) +
+  labs(
+    #title = "Functional Richness vs. Precipitation Seasonality",
+    x     = "Precipitation Seasonality",
+    y     = "Functional Richness"
+  ) +
+  scale_x_continuous(expand = expansion(mult = c(0, 0.2))) +
+  theme_aaas()
+
+#–– Add non‐overlapping labels at the *smoothed* endpoints
+p_final <- p_base +
+  geom_text_repel(
+    data            = endpoints,
+    aes(x = x, y = y, label = label),
+    inherit.aes     = FALSE,     # drop the colour=type mapping here
+    nudge_x         = 5,
+    direction       = "y",
+    hjust           = 0,
+    segment.size    = 0.2,
+    segment.colour  = "grey50",
+    size            = 3.5,
+    family          = "Helvetica",
+    colour          = "black",   # label text in black
+    max.overlaps    = Inf
+  )
+
+#–– Save vector PDF
+ggsave(
+  "Fig_FR_vs_PS_IG_Labeled.pdf",
+  plot   = p_final,
+  width  = 7,
+  height = 5,
+  device = cairo_pdf
+)
+
+
+```
+
+
+
+
+
+
+```{r}
+ full_fta_val_wt <- full_fta_val_wt %>%                    # Create transformed variable
+  mutate( lab = chartr("pm", "mp", lab))
+
+
+full_fta_val_wt |>
+  group_by(grid) |> 
+  summarize(fta_sum = sum(fta*int_str)) |> 
+  summarize(fta_s_mean = max(fta_sum), 
+            sd = min(fta_sum))
+
+
+
+
+
+```
+
+
+
+
+```{r}
+#–– Libraries
+library(dplyr)
+library(purrr)
+library(mgcv)
+library(ggplot2)
+library(ggrepel)
+library(grid)      # for unit()
+library(extrafont) # for Helvetica
+
+#–– AAAS‐style theme (no legend title, no plot title)
+theme_aaas <- function(base_family="Helvetica") {
+  theme_minimal(base_family = base_family) +
+    theme(
+      axis.title       = element_text(size = 12),
+      axis.text        = element_text(size = 10, colour = "black"),
+      legend.position  = "none",
+      panel.grid.major = element_line(colour = "grey90"),
+      panel.grid.minor = element_blank(),
+      plot.margin      = margin(20,20,20,20)
+    )
+}
+
+#–– Safe GAM wrapper
+safe_gam <- function(d) {
+  if(nrow(d[complete.cases(d$clim_val, d$obs_ab), ]) < 5 ||
+     length(unique(d$clim_val)) < 3) return(NULL)
+  tryCatch(
+    gam(obs_ab ~ s(clim_val), data = d, method = "REML"),
+    error = function(e) NULL
+  )
+}
+
+#–– 1) Precipitation Seasonality
+df_ps <- bind_rows(
+  fr_palms_with_climate   |> filter(clim_var == "PS") |> mutate(type = "m"),
+  fr_mammals_with_climate |> filter(clim_var == "PS") |> mutate(type = "p")
+) |> 
+  droplevels() |> 
+  mutate(label = paste0("IG-", SBM_G, type)) |> 
+  mutate(label = str_remove(label, "X"))
+
+endpoints_ps <- df_ps |>
+  group_by(label) |>
+  nest() |>
+  mutate(
+    gam_mod = map(data, safe_gam),
+    x_max   = map_dbl(data, ~ max(.x$clim_val, na.rm = TRUE)),
+    y_max   = map2_dbl(gam_mod, x_max, ~ if (!is.null(.x)) predict(.x, newdata = data.frame(clim_val = .y)) else NA_real_)
+  ) |>
+  filter(!is.na(y_max)) |>
+  dplyr::select(label, x = x_max, y = y_max)
+
+p_ps <- ggplot(df_ps, aes(x = clim_val, y = obs_ab,
+                          group = label,
+                          colour = type)) +
+  geom_smooth(method = "gam", se = TRUE, size = 1.2, alpha = 0.5) +
+  scale_colour_manual(values = c(p = "darkgreen", m = "firebrick2")) +
+  labs(
+    x = "Precipitation seasonality",
+    y = "Functional Richness"
+  ) +
+  scale_x_continuous(limits = c(0, 150), expand = expansion(mult = c(0, 0.05))) +
+  theme_aaas() +
+  geom_text_repel(
+    data         = endpoints_ps,
+    aes(x = x, y = y, label = label),
+    inherit.aes  = FALSE,
+    nudge_x      = 5,
+    direction    = "y",
+    hjust        = 0,
+    segment.size = 0.2,
+    segment.colour = "grey50",
+    size         = 3.5,
+    family       = "Helvetica",
+    colour       = "black",
+    max.overlaps = Inf
+  )
+
+
+
+#–– 2) Mean Annual Temperature
+df_temp <- bind_rows(
+  fr_palms_with_climate   |> filter(clim_var == "Temp") |> mutate(type = "p"),
+  fr_mammals_with_climate |> filter(clim_var == "Temp") |> mutate(type = "m")
+) |> 
+  droplevels() |>
+  mutate(
+    x_val = clim_val / 10,
+    label = paste0("IG-", SBM_G, type)
+  ) |> 
+  mutate(label = str_remove(label, "X"))
+
+
+endpoints_temp <- df_temp |>
+  group_by(label) |>
+  nest() |>
+  mutate(
+    gam_mod = map(data, safe_gam),
+    x_max   = map_dbl(data, ~ max(.x$x_val, na.rm = TRUE)),
+    y_max   = map2_dbl(gam_mod, x_max, ~ if (!is.null(.x)) predict(.x, newdata = data.frame(clim_val = .y * 10)) else NA_real_)
+  ) |>
+  filter(!is.na(y_max)) |>
+  dplyr::select(label, x = x_max, y = y_max)
+
+p_temp <- ggplot(df_temp, aes(x = x_val, y = obs_ab, group = label, colour = type)) +
+  geom_smooth(method = "gam", se = TRUE, size = 1.2, alpha = 0.5) +
+  scale_colour_manual(values = c(p = "darkgreen", m = "firebrick2")) +
+  labs(
+    x = "Mean Annual Temperature",
+    y = "Functional Richness"
+  ) +
+  scale_x_continuous(limits = c(5, 30), expand = expansion(mult = c(0, 0.05))) +
+  theme_aaas() +
+  geom_text_repel(
+    data         = endpoints_temp,
+    aes(x = x, y = y, label = label),
+    inherit.aes  = FALSE,
+    nudge_x      = 0.5,
+    direction    = "y",
+    hjust        = 0,
+    segment.size = 0.2,
+    segment.colour = "grey50",
+    size         = 3.5,
+    family       = "Helvetica",
+    colour       = "black",
+    max.overlaps = Inf
+  ) 
+
+
+#–– Helper to compute GAM endpoints for a given x‐var transformation
+compute_endpoints <- function(df, x_var, labs, transform = identity, inv_transform = identity) {
+  df %>%
+    filter(lab %in% labs) %>%
+    group_by(lab) %>%
+    nest() %>%
+    mutate(
+      gam_mod = map(data, ~ gam(fta ~ s(x), data = mutate(.x, x = transform(.x[[x_var]])), method = "REML")),
+      x_max   = map_dbl(data, ~ max(transform(.x[[x_var]]), na.rm = TRUE)),
+      y_max   = map2_dbl(gam_mod, x_max, ~ predict(.x, newdata = data.frame(x = .y)))
+    ) %>%
+    filter(!map_lgl(gam_mod, is.null)) %>%
+    transmute(
+      lab = lab,
+      x   = inv_transform(x_max),
+      y   = y_max
+    )
+}
+
+
+
+
+
+#–– 1) Temperature plot
+temp_labs      <- c('m3p3', 'm3p6', 'm5p2', 'm7p2')
+endpoints_temp <- compute_endpoints(
+  full_fta_val_wt,
+  x_var        = "Temp",
+  labs         = temp_labs,
+  transform    = function(x) x/10,         # model on Temp/10
+  inv_transform= function(x) x             # x already scaled in plot
+)
+
+temperature_fta_plot <- 
+  ggplot(full_fta_val_wt |> filter(Var2.x != 0, Var1.x != 0)) + 
+  # grey dashed smooths for all
+  geom_smooth(aes(x = Temp/10, y = fta, group = lab),
+              se = FALSE, size = 0.5, linetype = 2, color = "grey") +
+  # highlighted smooths
+  geom_smooth(aes(x = Temp/10, y = fta, color = int_str, fill = lab),
+              data = full_fta_val_wt |> filter(lab %in% temp_labs),
+              se = FALSE, size = 1, linetype = 1) +
+  # labels at smooth endpoints
+  geom_text_repel(
+    data            = endpoints_temp,
+    aes(x = x, y = y, label = lab),
+    inherit.aes     = FALSE,
+    nudge_x         = 0.5,
+    direction       = "y",
+    hjust           = 0,
+    segment.size    = 0.2,
+    segment.colour  = "grey50",
+    size            = 3.5
+  ) +
+  scale_color_gradient(low = "yellow", high = "red") +
+  scale_x_continuous(limits = c(5,30), expand = expansion(mult = c(0, 0.05))) +
+  xlab("Mean Annual Temperature (°C)") +
+  ylab("Functional Trophic Asymmetry") +
+  theme_classic() +
+  theme(
+    legend.position = "none",
+    axis.title      = element_text(size = 12),
+    axis.text       = element_text(size = 10)
+  ) + 
+  theme_aaas()
+
+#–– 2) Precipitation seasonality plot
+ps_labs      <- c('m5p6','m5p5','m7p5','m1p5','m6p5','m3p6','m4p6',
+                  'm7p6','m1p6','m6p6','m3p5','m6p7')
+endpoints_ps <- compute_endpoints(
+  full_fta_val_wt,
+  x_var        = "PS",
+  labs         = ps_labs,
+  transform    = identity,                # model on PS directly
+  inv_transform= identity
+)
+
+ps_fta_plot <- 
+  ggplot(full_fta_val_wt) + 
+  # grey dashed smooths for all
+  geom_smooth(aes(x = PS, y = fta, group = lab),
+              se = FALSE, size = 0.5, linetype = 2, color = "grey") +
+  # highlighted smooths
+  geom_smooth(aes(x = PS, y = fta, color = int_str, fill = lab),
+              data = full_fta_val_wt |> filter(lab %in% ps_labs),
+              se = FALSE, size = 1, linetype = 1) +
+  # labels at smooth endpoints
+  geom_text_repel(
+    data            = endpoints_ps,
+    aes(x = x, y = y, label = lab),
+    inherit.aes     = FALSE,
+    nudge_x         = 5,
+    direction       = "y",
+    hjust           = 0,
+    segment.size    = 0.2,
+    segment.colour  = "grey50",
+    size            = 3.5
+  ) +
+  scale_color_gradient(low = "yellow", high = "red") +
+  scale_x_continuous(limits = c(0,150), expand = expansion(mult = c(0, 0.05))) +
+
+  xlab("Precipitation Seasonality") +
+  ylab("Functional Trophic Asymmetry") +
+  theme_classic() +
+  theme(
+    legend.position = "none",
+    axis.title      = element_text(size = 12),
+    axis.text       = element_text(size = 10)
+  ) + 
+  theme_aaas()
+
+
+# 
+# full_fta_plot_temp <- 
+#   ggplot(full_fta_val_wt) + 
+#   geom_smooth(aes(x = Temp/10, y = h2obs, groups = lab),
+#               col = 'black',
+#               se = TRUE, size = 0.5, lty= 1) +  # Smooth line without shaded confidence interval
+#   # geom_smooth(aes(x = Temp, y = fta), 
+#   #           se = TRUE, size = 2, lty= 1, col = 'black') + 
+#   xlab('Mean Annual Temperature') + 
+#   ylab("Network Specialization H2'") + 
+#   theme_classic() +
+#   theme(legend.position = "none")  # Remove legend
+# 
+# full_fta_plot_ps <- 
+#   ggplot(full_fta_val_wt) + 
+#   geom_smooth(aes(x = PS, y = h2obs, groups = lab),
+#               col = 'black',fill = 'grey',
+#               se = TRUE, size = 0.5, lty= 1) +  # Smooth line without shaded confidence interval
+#   # geom_smooth(aes(x = Temp, y = fta), 
+#   #           se = TRUE, size = 2, lty= 1, col = 'black') + 
+#   xlab('Precipitation Seasonality') + 
+#   ylab("Network Specialization H2'") + 
+#   theme_classic() +
+#   theme(legend.position = "none")  # Remove legend
+
+
+
+#–– 1) Arrange the four plots in a 2×2 grid
+panel_figure <- 
+  (p_temp + temperature_fta_plot) /
+  (p_ps   + ps_fta_plot) +
+  theme(plot.tag = element_text(face = "bold", size = 12))
+
+#–– 2) Save directly as a PNG using ggsave
+ggsave(
+  filename = "panel_figure.pdf",
+  plot     = panel_figure,
+ width  = 10,
+  height = 8,
+  device = cairo_pdf)
+```
+)
+
+
+"Fig_FR_vs_PS_IG_Labeled.pdf",
+  plot   = p_final,
+ 
+
+
+
+
+
+
+
+```{r}
+
+full_fta_val_wt |> 
+  ggplot(aes(groups = lab)) + 
+  geom_histogram(aes(c(fta*int_str) |> sqrt())) + 
+  geom_vline(aes(xintercept = median(c(fta*int_str) |> sqrt())), col = 'red') + 
+  theme_minimal() + 
+  xlab(c('sqrt(FTA*interaction strength)'))
+
+# Estimate Density
+dens <- density(full_fta_val_wt$sum_fta)
+# Estimate Density
+dens2 <- density(sqrt(full_fta_val_wt$fta * full_fta_val_wt$int_str ))
+
+# Plot Density
+
+# Function to Find Local Maxima
+find_local_maxima <- function(x, y) {
+  peaks <- which(diff(sign(diff(y))) == -2) + 1
+  return(peaks)
+}
+
+
+
+
+# Find Peaks
+peaks_indices <- find_local_maxima(dens$x, dens$y)
+peaks_x <- dens$x[peaks_indices]
+peaks_y <- dens$y[peaks_indices]
+
+# Find Peaks
+peaks_indices2 <- find_local_maxima(dens2$x, dens2$y)
+peaks_x2 <- dens2$x[peaks_indices2]
+peaks_y2 <- dens2$y[peaks_indices2]
+
+
+par(mfrow = c(1,1))
+plot(dens, main = "FTA density distribution (raw)", ylim = c(0,10))
+# Highlight Peaks on the Plot
+points(peaks_x, peaks_y, col = "red", pch = 19)
+text(peaks_x, peaks_y, labels = round(peaks_x, 2), pos = 3, col = "red")
+
+plot(dens2, main = "FTA density distribution (adjusted)", ylim = c(0,10))
+# Highlight Peaks on the Plot
+points(peaks_x2, peaks_y2, col = "red", pch = 19)
+text(peaks_x2, peaks_y2, labels = round(peaks_x, 2), pos = 3, col = "red")
+
+
+
+
+```
+
+
+
+
+
+```{r}
+library(ggridges)
+
+
+# Prepare the data
+full_fta_val_wt2 <- full_fta_val_wt %>%
+  mutate(sqrt_var = sqrt(fta * int_str)) %>%                    # Create transformed variable
+  mutate( lab = chartr("pm", "mp", lab),         # swap p ↔ m
+    lab = factor(lab, levels = unique(lab))# back to factor, preserving order
+  ) |> # Reorder 'lab' by median
+  mutate(lab = fct_reorder(lab, fta, .fun = median)) 
+
+# Create the ridgeline plot
+ggplot(full_fta_val_wt2, aes(x = fta, y = lab, fill = lab)) + 
+  geom_density_ridges(scale = 1.5, alpha = 0.7, color = "white") + 
+  theme_minimal() + 
+  labs(
+    x = "Functional Trophic Assymetry",
+    y = "Interaction guild"
+  ) +
+  theme(
+    legend.position = "none",
+    axis.text.y = element_text(size = 8),
+    plot.title = element_text(hjust = 0.5)
+  )
+
+```
+
+
+```{r}
+#–– Libraries
+library(ggplot2)
+library(ggridges)
+library(viridis)
+library(grid)       # for unit()
+library(extrafont)  # if you need to import Helvetica
+
+#–– AAAS‐style theme
+theme_aaas <- function(base_family = "Helvetica") {
+  theme_minimal(base_family = base_family) +
+    theme(
+      plot.title     = element_text(face = "bold", size = 14, hjust = 0.5, margin = margin(b = 10)),
+      axis.title     = element_text(size = 10),
+      axis.text      = element_text(size = 9),
+      axis.text.y    = element_text(face = "italic"),
+      legend.position= "none",
+      panel.grid.minor = element_blank(),
+      panel.grid.major = element_line(colour = "grey90"),
+      plot.margin    = margin(20, 20, 20, 20)
+    )
+}
+
+
+  
+
+#–– Build the ridgeline figure
+p <- ggplot(full_fta_val_wt2, aes(x = fta, y = lab, fill = lab)) + 
+  geom_density_ridges(
+    scale           = 1.2,
+    rel_min_height  = 0.01,
+    alpha           = 0.8,
+    colour          = "white",
+    size            = 0.2
+  ) +
+  scale_fill_viridis_d(
+    option = "D",
+    begin  = 0.2,
+    end    = 0.8
+  ) +
+  labs(
+    title = "Distribution of Functional Trophic Asymmetry\nacross Interaction Guilds",
+    x     = "Functional Trophic Asymmetry",
+    y     = "Interaction Guild"
+  ) +
+  theme_aaas()
+
+p
+#–– Save as a vector PDF for crisp lines
+ggsave(
+  filename = "Fig_FTA_Ridgeline.pdf",
+  plot     = p,
+  width    = 6,
+  height   = 8,
+  device   = cairo_pdf
+)
+
+
+```
+
+
+```{r}
+full_fta_val_wt |>
+  group_by(lab) |>
+  summarise(fta = median(fta), 
+            int_str = mean(int_str)) |> 
+  
+  ggplot() + 
+  geom_point(aes((int_str), fta)) +
+  geom_smooth(aes((int_str), fta), method = 'lm')  +
+  theme_minimal() + 
+  xlab('Interaction strength') + 
+  ylab('Functional trophic asymmetry')
+
+
+
+
+
+
+full_fta_val_wt |>
+  group_by(lab) |>
+  summarise(fta = median(fta), 
+            int_str = mean(int_str)) %>%
+  lm(fta~int_str, .) |> 
+  sjPlot::tab_model()
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+```{r}
+
+
+#–– Libraries
+library(dplyr)
+library(ggplot2)
+library(forcats)
+library(viridis)
+library(grid)       # for unit()
+library(extrafont)  # for Helvetica if needed
+
+#–– AAAS‐style theme
+theme_aaas <- function(base_family = "Helvetica") {
+  theme_minimal(base_family = base_family) +
+    theme(
+      plot.title       = element_text(face = "bold", size = 16, hjust = 0.5, margin = margin(b = 10)),
+      axis.title       = element_text(size = 12),
+      axis.text        = element_text(size = 10, colour = "black"),
+      axis.text.x      = element_text(angle = 45, hjust = 1, vjust = 1),
+      panel.grid.major = element_line(colour = "grey90"),
+      panel.grid.minor = element_blank(),
+      legend.position  = "none",
+      plot.margin      = margin(20, 20, 20, 20)
+    )
+}
+
+#–– 1) Prepare the data
+df_plot <- full_fta_val_wt2 %>%
+  filter(!is.na(int_str)) %>%
+  # ensure int_str is numeric, then create a factor ordered by median FTA
+  mutate(
+    int_str_num = as.numeric(as.character(int_str |> round(2))),
+    int_str_fct = factor(int_str_num)
+  )
+
+#–– 2) Build the plot
+p <- ggplot(df_plot, aes(x = int_str_fct, y = fta)) +
+  
+  # boxplots
+  geom_boxplot(
+    colour = "grey40",
+    alpha  = 0.8,
+    outlier.size = 0.5,
+    width  = 0.6
+  )  +
+  
+  # labels
+  labs(
+    title = "Functional Trophic Asymmetry Across Interaction Strengths",
+    x     = "Interaction strength",
+    y     = "Functional Trophic Asymmetry (FTA)"
+  ) +
+  
+  # apply AAAS theme
+  theme_aaas()
+
+#–– 3) Save as vector PDF
+ggsave(
+  filename = "Fig_FTA_vs_IntStr_Boxplot.pdf",
+  plot     = p,
+  width    = 7,
+  height   = 5,
+  device   = cairo_pdf
+)
+```
+
+
+
+
+```{r}
+
+
+
+full_fta_val_wt |> 
+  ggplot(aes(groups = lab)) + 
+  geom_histogram(aes(c(h2obs))) + 
+  theme_minimal() + 
+  xlab(c('Network specialization (H2`)'))
+
+
+hist(full_fta_val_wt2$fta)
+
+full_fta_val_wt2 |> head()
+
+
+full_fta_val_wt$h2 |> quantile(na.rm = T)
+
+full_fta_val_wt %>%
+  filter(!is.na(h2), !is.na(sum_fta)) %>%
+  ggplot(aes(sum_fta, h2)) +
+  geom_point() + 
+  theme_minimal() + 
+  ylab(c('Network specialization (H2`)'))  + 
+  xlab(c('FTA adjusted')) + 
+  geom_smooth()
+
+
+
+cars |> 
+  ggplot() +
+  geom_point(aes(speed, dist))
+
+
+
+detach("package:ggplot2", unload = TRUE)  # If loaded earlier
+install.packages("ggplot2")               # Reinstall just in case
+library(ggplot2)
+```
+
+```{r}
+
+
+ssc <- 
+  all_assemblages_prunned |>
+  filter(taxa == 'palm') |> 
+  filter(SBM_G == 5) |> 
+  group_by(grid, geometry, SBM_G) |> 
+  summarise(n_species = n_distinct(id)) %>%
+  bind_cols(sf::st_coordinates(.))
+ssc2 <- 
+  all_assemblages_prunned |>
+  filter(taxa == 'palm') |> 
+  filter(SBM_G == 6) |> 
+  group_by(grid, geometry, SBM_G) |> 
+  summarise(n_species = n_distinct(id))  %>%
+  bind_cols(sf::st_coordinates(.)) 
+ssc3 <- 
+  all_assemblages_prunned |>
+  filter(taxa == 'palm') |> 
+  filter(SBM_G == 3) |> 
+  group_by(grid, geometry, SBM_G) |> 
+  summarise(n_species = n_distinct(id))  %>%
+  bind_cols(sf::st_coordinates(.)) 
+ssc4 <- 
+  all_assemblages_prunned |>
+  filter(taxa == 'palm') |> 
+  filter(SBM_G == 2) |> 
+  group_by(grid, geometry, SBM_G) |> 
+  summarise(n_species = n_distinct(id))  %>%
+  bind_cols(sf::st_coordinates(.)) 
+```
+
+```{r}
+ssc   |> 
+  filter(n_species > 15) |> 
+  ggplot() + 
+  geom_point(aes(X,Y, size = n_species), color = 'red', alpha = 0.5)  + 
+  geom_point(aes(X,Y, size = n_species), color = 'blue', alpha = 0.5,   data = ssc2 |> filter(n_species > 1 ))  + 
+  geom_point(aes(X,Y, size = n_species), color = 'black', alpha = 0.5,   data = ssc3 |> filter(n_species > 3 ))  +
+  geom_point(aes(X,Y, size = n_species*2), color = 'green', alpha = 0.5,   data = ssc4 |> filter(n_species > 3 ))  + 
+  
+  ylim(c(-30,20)) + 
+  xlim(c(-80,-40)) 
+
+
+
+```
+
+```{r}
+
+
+ssc <- 
+  all_assemblages_prunned |>
+  filter(taxa == 'mammals') |> 
+  filter(SBM_G == 1) |> 
+  group_by(grid, geometry, SBM_G) |> 
+  summarise(n_species = n_distinct(id)) %>%
+  bind_cols(sf::st_coordinates(.))
+ssc2 <- 
+  all_assemblages_prunned |>
+  filter(taxa == 'mammals') |> 
+  filter(SBM_G == 3) |> 
+  group_by(grid, geometry, SBM_G) |> 
+  summarise(n_species = n_distinct(id))  %>%
+  bind_cols(sf::st_coordinates(.)) 
+ssc3 <- 
+  all_assemblages_prunned |>
+  filter(taxa == 'mammals') |> 
+  filter(SBM_G == 4) |> 
+  group_by(grid, geometry, SBM_G) |> 
+  summarise(n_species = n_distinct(id))  %>%
+  bind_cols(sf::st_coordinates(.)) 
+ssc4 <- 
+  all_assemblages_prunned |>
+  filter(taxa == 'mammals') |> 
+  filter(SBM_G == 6) |> 
+  group_by(grid, geometry, SBM_G) |> 
+  summarise(n_species = n_distinct(id))  %>%
+  bind_cols(sf::st_coordinates(.)) 
+
+ssc5 <- 
+  all_assemblages_prunned |>
+  filter(taxa == 'mammals') |> 
+  filter(SBM_G == 7) |> 
+  group_by(grid, geometry, SBM_G) |> 
+  summarise(n_species = n_distinct(id))  %>%
+  bind_cols(sf::st_coordinates(.)) 
+```
+
+```{r}
+ssc   |> 
+  filter(n_species > 2) |> 
+  ggplot() + 
+  geom_point(aes(X,Y, size = n_species|> log()), color = 'red', alpha = 0.5)  + 
+  geom_point(aes(X,Y, size = n_species|> log()), color = 'blue', alpha = 0.5,   data = ssc2 |> filter(n_species > 20 ))  + 
+  geom_point(aes(X,Y, size = n_species|> log()), color = 'black', alpha = 0.5,   data = ssc3 |> filter(n_species > 5 ))  +
+  geom_point(aes(X,Y, size = n_species|> log()), color = 'yellow', alpha = 0.5,   data = ssc4 |> filter(n_species > 5 ))  + 
+  geom_point(aes(X,Y, size = n_species|> log()), color = 'green', alpha = 0.5,   data = ssc5 |> filter(n_species > 5 ))  + 
+  ylim(c(-30,20)) + 
+  xlim(c(-80,-40)) 
+
+```
+
+
+```{r}
+library(igraph)
+library(viridis)
+
+# Create a graph from the adjacency matrix
+g <- graph_from_adjacency_matrix(
+  SBMs$SBM1$Omega_rs,
+  mode = "undirected",    # Change to "undirected" if appropriate
+  weighted = TRUE,
+  diag = FALSE          # Exclude self-loops
+)
+plot(g )
+
+# Betweenness Centrality
+betweenness_centrality <- betweenness(g, directed = FALSE, normalized = TRUE)
+
+# Eigenvector Centrality
+eigen_centrality <- eigen_centrality(g, directed = FALSE, scale = TRUE)$vector
+
+
+# Combine centrality measures into a data frame
+centrality_scores <- data.frame(
+  Node = 1:7,
+  Betweenness_Centrality = betweenness_centrality,
+  Eigenvector_Centrality = eigen_centrality
+)
+
+
+# Visualize the graph with Eigenvector Centrality
+V(g)$size <- centrality_scores$Betweenness_Centrality * 30  # Adjust scaling as needed
+V(g)$color <- viridis_pal()(7)[rank(centrality_scores$Betweenness_Centrality)]
+E(g)$width <- E(g)$weight * 10  # Adjust scaling as needed
+
+plot(
+  g,
+  vertex.label.color = "black",
+  vertex.label.cex = 0.8,
+  edge.arrow.size = 0.5,
+  main = "Network Graph with Eigenvector Centrality"
+)
+
+
+# Visualize the graph with Eigenvector Centrality
+V(g)$size <- centrality_scores$Eigenvector_Centrality * 30  # Adjust scaling as needed
+V(g)$color <- viridis_pal()(7)[rank(centrality_scores$Eigenvector_Centrality)]
+E(g)$width <- E(g)$weight * 10  # Adjust scaling as needed
+
+plot(
+  g,
+  vertex.label.color = "black",
+  vertex.label.cex = 0.8,
+  edge.arrow.size = 0.5,
+  main = "Network Graph with Eigenvector Centrality"
+)
+```
+
+
+
+
+
+
+Sankey plot to visualize the trait distribution and 
+
+
+```{r}
+library(ggplot2)
+library(networkD3)
+library(dplyr)
+
+
+# Compute quintiles for MaxStemHeight and AvgFruitLength
+trait_data_sbm_palm <- trait_data_sbm_palm %>%
+  mutate(
+    SizeCategory = cut(MaxStemHeight_m, 
+                       breaks = quantile(MaxStemHeight_m, probs = seq(0, 1, 0.2), na.rm = TRUE, include.lowest = TRUE),
+                       labels = c("shQ1", "shQ2", "shQ3", "shQ4", "shQ5")),
+    FruitSizeCategory = cut(AverageFruitLength_cm, 
+                            breaks = quantile(AverageFruitLength_cm, probs = seq(0, 1, 0.2), na.rm = TRUE, include.lowest = TRUE),
+                            labels = c("flQ1", "flQ2", "flQ3", "flQ4", "flQ5")),
+    AcaulescentLabel = ifelse(Acaulescent == 1, "Acaulescent", "Non-Acaulescent")
+  ) 
+
+# Remove NA values in categories
+trait_data_sbm_palm <- trait_data_sbm_palm %>%
+  filter(!is.na(SizeCategory) & !is.na(FruitSizeCategory) & !is.na(AcaulescentLabel) & !is.na(group))
+
+# Summarize counts
+long_data <- trait_data_sbm_palm %>%
+  count(SizeCategory, FruitSizeCategory, AcaulescentLabel, group, name = "Value")
+
+# Create nodes
+nodes <- data.frame(name = unique(c(long_data$SizeCategory |> as.character(), 
+                                    long_data$FruitSizeCategory  |> as.character(), 
+                                    long_data$AcaulescentLabel,
+                                    long_data$group)))
+
+# Create links for the Sankey diagram
+links <- bind_rows(
+  data.frame(source = match(long_data$SizeCategory, nodes$name) - 1,
+             target = match(long_data$FruitSizeCategory, nodes$name) - 1,
+             value = long_data$Value),
+  data.frame(source = match(long_data$FruitSizeCategory, nodes$name) - 1,
+             target = match(long_data$AcaulescentLabel, nodes$name) - 1,
+             value = long_data$Value),
+  data.frame(source = match(long_data$AcaulescentLabel, nodes$name) - 1,
+             target = match(long_data$group, nodes$name) - 1,
+             value = long_data$Value)
+)
+
+# Generate Sankey plot
+sankeyNetwork(Links = links, Nodes = nodes, Source = "source", Target = "target",
+              Value = "value", NodeID = "name", fontSize = 20, nodeWidth = 30)
+
+
+
+```
+
+
+
+```{r}
+
+# Compute quintiles for MaxStemHeight and AvgFruitLength
+trait_data_sbm_mammal <- trait_data_sbm_mammal %>%
+  mutate(DietFruitCategory = cut(
+    Diet.Fruit + runif(n(), min = -1e-6, max = 1e-6),  # Small jitter to avoid ties
+    breaks = unique(quantile(Diet.Fruit + runif(n(), min = -1e-6, max = 1e-6), probs = seq(0, 1, 0.2), na.rm = TRUE, include.lowest = TRUE)),
+    labels = c("frQ1", "frQ2", "frQ3", "frQ4", "frQ5"),
+    include.lowest = TRUE
+  ),
+  Body_mass = cut(BodyMass.Value, 
+                    breaks = quantile(BodyMass.Value, 
+                                      probs = seq(0, 1, 0.2), na.rm = TRUE, 
+                                      include.lowest = TRUE),
+                    labels = c("bmQ1", "bmQ2", "bmQ3", "bmQ4", "bmQ5")),
+  activity = ifelse(Activity.Nocturnal == 1, "Nocturnal", 
+                    ifelse(Activity.Crepuscular == 1, 
+                           'Crepuscular' ,
+                           "Diurnal"))
+  ) 
+
+
+
+
+# Remove NA values in categories
+trait_data_sbm_mammal <- trait_data_sbm_mammal %>%
+  filter(!is.na(DietFruitCategory) & !is.na(Body_mass) & !is.na(activity) & !is.na(group))
+
+# Summarize counts
+long_data <- trait_data_sbm_mammal %>%
+  count(DietFruitCategory, Body_mass, activity, group, name = "Value")
+
+# Create nodes
+nodes <- data.frame(name = unique(c(long_data$DietFruitCategory |> as.character(), 
+                                    long_data$Body_mass  |> as.character(), 
+                                    long_data$activity,
+                                    long_data$group)))
+
+# Create links for the Sankey diagram
+links <- bind_rows(
+  data.frame(source = match(long_data$DietFruitCategory, nodes$name) - 1,
+             target = match(long_data$Body_mass, nodes$name) - 1,
+             value = long_data$Value),
+  data.frame(source = match(long_data$Body_mass, nodes$name) - 1,
+             target = match(long_data$activity, nodes$name) - 1,
+             value = long_data$Value),
+  data.frame(source = match(long_data$activity, nodes$name) - 1,
+             target = match(long_data$group, nodes$name) - 1,
+             value = long_data$Value)
+)
+
+# Generate Sankey plot
+sankeyNetwork(Links = links, Nodes = nodes, Source = "source", Target = "target",
+              Value = "value", NodeID = "name", fontSize = 20, nodeWidth = 30)
+```
+
+
+
+```{r}
+
+
+palm_to_order <- 
+  
+  trait_data_sbm_palm |> 
+  distinct(MaxStemHeight_m, 
+           AverageFruitLength_cm, 
+           Acaulescent,
+           Erect, 
+           group,
+           spNamePalm) |>
+  drop_na() |> 
+  filter(spNamePalm %in% c(all_assemblages_prunned |> 
+                             filter(taxa == 'palm') |>
+                             pull(id) |>
+                             unique()))
+
+
+
+
+mammal_to_order <- 
+  
+  trait_data_sbm_mammal |> 
+  distinct(Diet.Fruit, 
+           BodyMass.Value, 
+           group, 
+           Activity.Nocturnal,
+           Activity.Crepuscular, 
+           Activity.Diurnal,
+           spNameMam) |>
+  drop_na() |> 
+  filter(spNameMam %in% c(all_assemblages_prunned |> 
+                            filter(taxa == 'mammals') |>
+                            pull(id) |>
+                            unique()))
+
+
+```
+
+
+
+
+
+```{r}
+
+# Example factor levels (replace these with your actual levels):
+guild_levels <- as.character(as.numeric(1:7))
+
+mammal_to_order <- mammal_to_order %>%
+  mutate(group = factor(group, levels = guild_levels))
+
+palm_to_order <- palm_to_order %>%
+  mutate(group = factor(group, levels = guild_levels))
+
+okabe_ito_palette <- c(
+  "#0071bb", # orange
+  "#e1862a", # sky blue
+  "#72009a", # bluish green
+  "#63c16d", # yellow
+  "#6fccee", # blue
+  "#7b2600", # vermillion
+  "#2b7b38"  # reddish purple
+)
+
+my_scale_color <- scale_color_manual(
+  values = okabe_ito_palette,
+  name = "Interaction guild",
+  drop = FALSE  # keep all factor levels in legend
+)
+
+mammal_to_order %>%
+  ggplot(aes(
+    x = BodyMass.Value,
+    y = Diet.Fruit/100,
+    shape = factor(Activity.Diurnal),
+    color = group
+  )) +
+  # Jittered points
+  geom_jitter(size = 3, alpha = 0.8, width = 0.05, height = 0.05) +
+  
+  # Add ellipses per group
+  stat_ellipse(aes(group = group, color = group),
+               type = "t",    # "t" uses a multivariate t distribution
+               level = 0.95,  # Coverage (0.95 = 95% ellipse)
+               size = 1,      # Line thickness
+               linetype = 1,  # Solid line
+               fill = NA      # No fill, just the border
+  ) +
+  
+  scale_color_viridis_d(name = "Interaction guild", option = "D") +
+  
+  labs(
+    x = "Body Mass (g)",
+    y = "Fruit in Diet (%)",
+    shape = "Diurnal Activity"
+  ) +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
+  
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(face = "bold", size = 20),
+    plot.subtitle = element_text(size = 14, color = "gray30", margin = margin(b = 10)),
+    axis.title.x = element_text(face = "bold", margin = margin(t = 10)),
+    axis.title.y = element_text(face = "bold", margin = margin(r = 10)),
+    legend.position = "top",
+    panel.grid.minor = element_blank()
+  )
+```
+
+
+
+### Plot guild distribution in the trait space 
+
+```{r}
+# -----------------------------
+# Plot 1: Mammals
+# -----------------------------
+mammal_to_order %>%
+  ggplot(aes(
+    x = BodyMass.Value,
+    y = Diet.Fruit/100,
+    shape = factor(Activity.Diurnal),
+    color = group
+  )) +
+  geom_point(size = 3, 
+              alpha = 0.5, 
+              width = 0.05, 
+              height = 0.05) +
+  stat_ellipse(aes(group = group),
+               type = "norm",    
+               level = 0.95,  
+               size = 0.5,      
+               linetype = 2) +
+  # Use the shared color scale
+  my_scale_color +  
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
+  labs(
+    x = "Body Mass (Log[g])",
+    y = "Fruit in Diet [%]",
+    shape = "Diurnal Activity"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    panel.grid.minor = element_blank(),
+    legend.position = "top"
+  )
+```
+
+
+```{r}
+mammal_traits |> 
+  ggplot(Bod)
+
+all_assemblages_prunned |> 
+  select(-geometry) |> 
+  filter(taxa == 'mammals') |> 
+  mutate(grid = as.character(grid) ) |>
+  left_join(fr_mammals_with_climate,by =  'grid') |> 
+  left_join(mammal_traits, by = c('id' = 'Scientific')) |> 
+  group_by(id, clim_var) |> 
+  summarize(t_mean = mean(clim_val), 
+            ts_sd = sd(clim_val)/t_mean,
+            body_size = mean(BodyMass.Value,na.rm = T)) |> 
+  filter(!is.na(ts_sd)) |> 
+  ggplot(aes(body_size, ts_sd)) +
+  geom_point() + 
+  facet_wrap(~clim_var, scales = 'free') + 
+  geom_smooth()
+
+
+all_assemblages_prunned |> 
+  select(-geometry) |> 
+  filter(taxa == 'mammals') |> 
+  left_join(mammal_traits, by = c('id' = 'Scientific'))  |> 
+  filter(Diet.Fruit!= 0) |> 
+  ggplot(aes(BodyMass.Value, Diet.Fruit))  +
+  geom_point() + 
+  geom_smooth(method = 'lm')
+```
+
+
+
+
+
+
+```{r}
+# -----------------------------
+# Plot 2: Palms
+# -----------------------------
+palm_to_order %>%
+  ggplot(aes(
+    x = AverageFruitLength_cm |> exp(),
+    y = MaxStemHeight_m  |> exp(),
+    shape = factor(Acaulescent),
+    color = group
+  )) +
+  geom_point(size = 3, alpha = 0.5,
+             width = 0.05, height = 0.05) +
+  stat_ellipse(aes(group = group),
+               type = "norm",    
+               level = 0.95,  
+               size = 0.5,      
+               linetype = 2,  
+               fill = NA) +
+  # Reuse the same color scale
+  my_scale_color +
+  # If you need a y-limit:
+  #ylim(c(0, 4)) +
+  labs(
+    x = "Average Fruit Length [cm]",
+    y = "Max Stem Height [m]",
+    shape = "Acaulescence"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    panel.grid.minor = element_blank(),
+    legend.position = "top"
+  )
+
+```
+
+
+```{r}
+trait_data_sbm_mammal <- 
+  mammPreds |>
+  right_join(mammal_traits, by = c('spNameMam' = 'Scientific'))
+
+names(trait_data_sbm_mammal)
+
+trait_data_mammal_widget <- 
+  trait_data_sbm_mammal |> 
+  mutate(sbm = as.numeric(group)) |> 
+  e_charts() |> 
+  e_parallel( Activity.Diurnal, Diet.Fruit, BodyMass.Value, sbm) |> 
+  e_title("Interaction guilds (mammals)") |>
+  e_visual_map(
+    sbm, 
+    type = 'continuous', 
+    color = c("red", 'green',  'yellow', "blue"))
+
+htmlwidgets::saveWidget(trait_data_mammal_widget, file = "00_Data/my_echart_mammal.html", selfcontained = TRUE)
+
+```
+
