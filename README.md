@@ -20,7 +20,8 @@ This project is licensed under the MIT License – see the [LICENSE](LICENSE) fi
 ## Citation
 
 If you use this code in your research, please cite the associated article (in press): 
-Munoz G., Savary, P., W. D. Kissling., & J.P. Lessard. 2025. Distinct functional responses of producers and their consumers to climate, shaping trophic asymmetry in mutualistic ecological networks.
+
+> Munoz G., Savary, P., W. D. Kissling., & J.P. Lessard. 2025. Distinct functional responses of producers and their consumers to climate, shaping trophic asymmetry in mutualistic ecological networks.
 
 
 ## Contact
