@@ -1,12 +1,3 @@
-## Program to implement data visualization scripts
-## Functional Asymmetry in Ecological Networks
-## Gabriel Munoz
-## Nov 2024 
-
-## Note: this programs depends on 01_FTA_implementation.R 
-## Note: Figures are labeled in order of appereance 
-
-
 ## Dependencies
 
 ```{r}
